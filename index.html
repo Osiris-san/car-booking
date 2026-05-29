@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Car Booking App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: Arial;
+      max-width: 900px;
+      margin: auto;
+      padding: 20px;
+      background: #f4f6f8;
+    }
+
+    h2 { text-align: center; }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 5px;
+    }
+
+    button {
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .start { background: green; color: white; }
+    .end { background: orange; color: white; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+    }
+
+    .status {
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .busy { background:#ffdddd; }
+    .free { background:#ddffdd; }
+
+    #adminPanel {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>🚗 Car Booking (Ford Puma EV)</h2>
+
+<div class="card">
+  <div id="status" class="status">Loading...</div>
+  <div id="startInfo"></div>
+
+  <input id="username" placeholder="Enter your name">
+  <button class="start" onclick="startSession()">Start Session</button>
+
+  <div id="endBlock" style="display:none;">
+    <input id="endKmInput" type="number" placeholder="End KM">
+    <button class="end" onclick="endSession()">End Session</button>
+  </div>
+</div>
+
+<button onclick="toggleAdmin()">🔐</button>
+
+<div id="adminPanel">
+  <input id="adminUser" placeholder="Admin user">
+  <input id="adminPass" type="password" placeholder="Password">
+  <button onclick="loginAdmin()">Login</button>
+
+  <div id="adminActions" style="display:none;">
+    <p>✅ Admin logged in</p>
+
+    <h4>Add Manual Entry</h4>
+    <input id="manualUser" placeholder="User">
+    <input id="manualStartKm" type="number" placeholder="Start KM">
+    <input id="manualEndKm" type="number" placeholder="End KM">
+    <input id="manualStartDate" type="date">
+    <input id="manualEndDate" type="date">
+    <button onclick="addManualEntry()">➕ Add Entry</button>
+  </div>
+</div>
+
+<div class="card">
+  <h3>📋 History</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Start KM</th>
+        <th>End KM</th>
+        <th>Distance</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="history"></tbody>
+  </table>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAMESE0-BLIF8NVt2o4NSyWy5CPSsTDwEM",
+  authDomain: "create-project-74ee7.firebaseapp.com",
+  projectId: "create-project-74ee7"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let activeSession = null;
+let isAdmin = false;
+
+/* DATE FORMAT */
+function formatDate(value) {
+  if (!value) return "N/A";
+  if (value.seconds) return new Date(value.seconds * 1000).toLocaleDateString("ro-RO");
+  return new Date(value).toLocaleDateString("ro-RO");
+}
+
+/* ADMIN LOGIN */
+async function loginAdmin() {
+  const user = adminUser.value;
+  const pass = adminPass.value;
+
+  const doc = await db.collection("admin").doc(user).get();
+
+  if (doc.exists && doc.data().password === pass) {
+    isAdmin = true;
+    adminActions.style.display = "block";
+    alert("✅ Admin logged in");
+    loadSessions();
+  } else {
+    alert("Wrong credentials");
+  }
+}
+
+/* ACTIVE SESSION */
+
+async function checkActiveSession() {
+  try {
+    const doc = await db.collection("state").doc("active").get();
+
+    const statusEl = document.getElementById("status");
+    const endBlockEl = document.getElementById("endBlock");
+
+    if (doc.exists) {
+      activeSession = doc.data();
+
+      statusEl.innerText = "🚫 In use by " + activeSession.user;
+      statusEl.className = "status busy";
+
+      endBlockEl.style.display = "block";
+
+    } else {
+      activeSession = null;
+
+      statusEl.innerText = "✅ Car available";
+      statusEl.className = "status free";
+
+      endBlockEl.style.display = "none";
+    }
+
+  } catch (error) {
+    console.error("State error:", error);
+
+    // ✅ ALWAYS update UI even on error
+    document.getElementById("status").innerText = "✅ Car available";
+  }
+}
+
+/* START */
+async function startSession() {
+  const user = username.value;
+  if (!user) return alert("Enter name");
+
+  const last = await db.collection("sessions").orderBy("endTime","desc").limit(1).get();
+  const lastKm = last.empty ? 0 : last.docs[0].data().endKm;
+
+  await db.collection("state").doc("active").set({
+    user,
+    startKm: lastKm,
+    startTime: new Date()
+  });
+
+  checkActiveSession();
+}
+
+/* END */
+async function endSession() {
+  const km = parseInt(endKmInput.value);
+  if (!km || km < activeSession.startKm) return alert("Invalid KM");
+
+  await db.collection("sessions").add({
+    ...activeSession,
+    endKm: km,
+    endTime: new Date(),
+    distance: km - activeSession.startKm
+  });
+
+  await db.collection("state").doc("active").delete();
+  checkActiveSession();
+}
+
+/* ADD ENTRY */
+async function addManualEntry() {
+  await db.collection("sessions").add({
+    user: manualUser.value,
+    startKm: parseInt(manualStartKm.value),
+    endKm: parseInt(manualEndKm.value),
+    distance: manualEndKm.value - manualStartKm.value,
+    startTime: new Date(manualStartDate.value),
+    endTime: new Date(manualEndDate.value)
+  });
+
+  alert("✅ Added");
+}
+
+/* DELETE */
+async function deleteSession(id) {
+  await db.collection("sessions").doc(id).delete();
+}
+
+/* EDIT */
+async function editSession(id) {
+  const docSnap = await db.collection("sessions").doc(id).get();
+  const s = docSnap.data();
+
+  const user = prompt("User:", s.user);
+  const start = prompt("Start KM:", s.startKm);
+  const end = prompt("End KM:", s.endKm);
+
+  if (!user || !start || !end) return;
+
+  await db.collection("sessions").doc(id).update({
+    user,
+    startKm: parseInt(start),
+    endKm: parseInt(end),
+    distance: parseInt(end) - parseInt(start)
+  });
+}
+
+/* LOAD */
+function loadSessions() {
+  db.collection("sessions")
+    .orderBy("endTime","desc")
+    .onSnapshot(snapshot => {
+
+      const table = document.getElementById("history");
+      table.innerHTML = "";
+
+      snapshot.forEach(doc => {
+        const s = doc.data();
+
+        table.innerHTML += `
+          <tr>
+            <td>${s.user}</td>
+            <td>${formatDate(s.startTime)}</td>
+            <td>${formatDate(s.endTime)}</td>
+            <td>${s.startKm}</td>
+            <td>${s.endKm}</td>
+            <td>${s.distance}</td>
+            <td>
+              ${isAdmin ? `
+                <button onclick="editSession('${doc.id}')">✏️</button>
+                <button onclick="deleteSession('${doc.id}')">❌</button>
+              ` : ""}
+            </td>
+          </tr>
+        `;
+      });
+
+    });
+}
+
+function toggleAdmin(){
+  adminPanel.style.display =
+    adminPanel.style.display === "none" ? "block" : "none";
+}
+
+/* INIT */
+function init(){
+  loadSessions();
+  checkActiveSession();
+}
+init();
+</script>
+
+</body>
+</html>
