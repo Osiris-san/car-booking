@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Car Booking App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  font-family: Arial;
+  max-width: 1400px;
+  margin: auto;
+  padding: 20px;
+  background: #f4f6f8;
+}
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  min-width: 0;
+}
+.status { padding:10px;border-radius:6px;font-weight:bold;}
+.busy { background:#ffdddd;}
+.free { background:#ddffdd;}
+button { padding:10px;margin:5px;border:none;border-radius:6px;cursor:pointer;}
+.start { background:green;color:white;}
+.end { background:orange;color:white;}
+input, select { padding:10px;margin:5px 5px 10px 0;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;}
+input[type=date], input[type=number] { min-width:140px;}
+.card > input { width: calc(50% - 12px); max-width:220px; }
+.card > input:last-child { margin-right:0; }
+.layout { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+.main { flex:1; min-width:0; }
+.sidebar { width:460px; min-width:320px; }
+.sidebar .card { margin-bottom:20px; }
+.sidebar table { font-size:0.88em; }
+.sidebar table th, .sidebar table td { white-space: nowrap; padding:6px 6px; }
+.sidebar table td { overflow:hidden; text-overflow:ellipsis; }
+.sidebar table td:first-child { max-width:130px; }
+.sidebar table td:nth-child(2) { max-width:180px; }
+.sidebar table td:nth-child(3) { max-width:260px; white-space: normal; }
+.sidebar table button { white-space: normal; }
+@media (max-width: 900px) {
+  .layout { flex-direction: column; }
+  .sidebar { width:100%; }
+}
+.main table { font-size:0.92em; }
+.main table th, .main table td { white-space: nowrap; }
+table { width:100%; table-layout: auto; border-collapse:collapse; margin-top:10px;}
+th,td { padding:8px;border-bottom:1px solid #ddd;text-align:center; word-break:break-word; overflow-wrap:anywhere;}
+.admin-col, .admin-cell, .admin-only { display: none; }
+.admin-visible .admin-col { display: table-cell; }
+.admin-visible .admin-cell { display: table-cell; }
+.admin-visible .admin-only { display: block; }
+.admin-row { display: none; }
+.admin-visible .admin-row { display: table-row; }
+.detail-row td { background: #f7f8fa; }
+.detail-row .detail-content { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; align-items:center; padding:10px 0; color:#444; }
+.detail-row button { margin:0 4px; }
+table input { width: 100%; margin: 4px 0; min-width: 0; padding:6px; }
+table input[type=date], table input[type=number] { min-width: 0; }
+.resRow { background:#fff3cd; }
+</style>
+</head>
+
+<body>
+
+<h2>🚗 Car Booking</h2>
+
+<div class="card" id="authCard">
+  <div id="authTabs" style="display:flex; gap:10px; margin-bottom:15px;">
+    <button onclick="switchAuthTab('login')" id="loginTabBtn" style="flex:1; background:#007bff; color:white;">Login</button>
+    <button onclick="switchAuthTab('register')" id="registerTabBtn" style="flex:1; background:#6c757d; color:white;">Register</button>
+  </div>
+
+  <div id="loginTab">
+    <h4>User Login</h4>
+    <form id="loginForm" autocomplete="on" onsubmit="userLogin(); return false;" style="display:flex; flex-direction:column; gap:8px;">
+      <input id="loginUsername" name="username" autocomplete="username" placeholder="Username">
+      <input id="loginPassword" name="current-password" autocomplete="current-password" type="password" placeholder="Password">
+      <label style="display:flex; align-items:center; gap:10px; margin:5px 0;">
+        <input id="rememberMe" type="checkbox">
+        Remember credentials in browser
+      </label>
+      <button type="submit">Login</button>
+    </form>
+    <div id="loginMessage" style="margin-top:8px; color:#d9534f;"></div>
+  </div>
+
+  <div id="registerTab" style="display:none;">
+    <h4>Register New Account</h4>
+    <input id="regUsername" placeholder="Username">
+    <input id="regPassword" type="password" placeholder="Password">
+    <input id="regPasswordConfirm" type="password" placeholder="Confirm Password">
+    <button onclick="userRegister()">Register</button>
+    <div id="regMessage" style="margin-top:8px; color:#d9534f;"></div>
+  </div>
+</div>
+
+<div class="card" id="bookingCard" style="display:none;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <div>
+      <strong>Logged in as:</strong> <span id="currentUsername" style="color:#007bff;"></span>
+    </div>
+    <button onclick="userLogout()" style="background:#dc3545; color:white;">Logout</button>
+  </div>
+
+  <div id="status" class="status">Loading...</div>
+
+  <input id="username" placeholder="Your name" style="display:none;">
+  <button class="start" onclick="startSession()">Start</button>
+
+  <div id="endBlock" style="display:none;">
+    <input id="endKmInput" type="number" placeholder="End KM">
+    <button class="end" onclick="endSession()">End</button>
+  </div>
+</div>
+<button onclick="toggleAdmin()">🔐</button>
+
+<div id="adminPanel" class="card" style="display:none;">
+  <input id="adminUser" placeholder="Admin user">
+  <input id="adminPass" type="password" placeholder="Password">
+  <button onclick="loginAdmin()">Login</button>
+
+  <div id="adminActions" style="display:none;">
+    ✅ Admin logged in
+    <div id="undoPanel" style="margin-top:10px; display:none;">
+      <button id="undoButton" onclick="undoLastAction()">Undo last action</button>
+      <div id="undoMessage" style="margin-top:6px;font-size:0.95em;color:#333;"></div>
+    </div>
+    
+    <div style="margin-top:15px; border-top:1px solid #ddd; padding-top:10px;">
+      <h4>👥 User Management</h4>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+        <input id="adminNewUser" placeholder="New username">
+        <input id="adminNewPass" type="password" placeholder="Password">
+        <button onclick="adminCreateUser()">Create User</button>
+        <button onclick="loadAdminUsers()">Refresh user list</button>
+      </div>
+      <div id="adminUserMessage" style="margin-top:8px; color:#d9534f;"></div>
+      <div id="adminUserList" style="margin-top:12px;"></div>
+      <div class="card admin-only" style="margin-top:12px;">
+        <h3>➕ Add History Entry</h3>
+        <input id="entryUser" placeholder="User">
+        <input id="entryStart" type="date">
+        <input id="entryEnd" type="date">
+        <input id="entryStartKm" type="number" placeholder="Start KM">
+        <input id="entryEndKm" type="number" placeholder="End KM">
+        <button onclick="addHistoryEntry()">Add Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ✅ RESERVATION -->
+<div class="layout">
+  <div class="main">
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <h3>📋 History</h3>
+        <button onclick="exportHistoryExcel()">Export Excel</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Start KM</th>
+            <th>End KM</th>
+            <th>Distance</th>
+            <th class="admin-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="history"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="card">
+      <h4>📅 Reserve Car</h4>
+      <input id="resUser" placeholder="User">
+      <input id="resStart" type="date">
+      <input id="resEnd" type="date">
+      <button onclick="addReservation()">Reserve</button>
+    </div>
+
+    <div class="card">
+      <h3>📅 Reservations</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Reserved</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="reservations"></tbody>
+      </table>
+    </div>
+
+    
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+
+
+<script>
+/* DATE */
+function formatDate(v){
+  if(!v) return "-";
+  if(v.seconds) return new Date(v.seconds*1000).toLocaleDateString();
+  return new Date(v).toLocaleDateString();
+}
+
+function switchAuthTab(tab){
+  document.getElementById('loginTab').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('registerTab').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('loginTabBtn').style.background = tab === 'login' ? '#007bff' : '#6c757d';
+  document.getElementById('registerTabBtn').style.background = tab === 'register' ? '#007bff' : '#6c757d';
+}
+
+async function userLogin(){
+  const username = document.getElementById('loginUsername').value;
+  const password = document.getElementById('loginPassword').value;
+  const msgEl = document.getElementById('loginMessage');
+
+  if(!username || !password){
+    msgEl.textContent = 'Enter username and password';
+    return;
+  }
+
+  const doc = await db.collection('users').doc(username).get();
+  if(doc.exists && doc.data().password === password){
+    const remember = document.getElementById('rememberMe').checked;
+    if(remember){
+      saveCredentials(username, password);
+    } else {
+      clearSavedCredentials();
+    }
+
+    currentUser = username;
+    document.getElementById('currentUsername').textContent = username;
+    document.getElementById('authCard').style.display = 'none';
+    document.getElementById('bookingCard').style.display = 'block';
+    document.getElementById('loginUsername').value = '';
+    document.getElementById('loginPassword').value = '';
+    msgEl.textContent = '';
+    document.getElementById('username').value = username;
+    document.getElementById('resUser').value = username;
+    load();
+  } else {
+    msgEl.textContent = 'Invalid username or password';
+  }
+}
+
+function saveCredentials(username, password){
+  if(typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem('carBookingCreds', JSON.stringify({ username, password }));
+  } catch(e){ }
+}
+
+function clearSavedCredentials(){
+  if(typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem('carBookingCreds');
+  } catch(e){ }
+}
+
+function loadSavedCredentials(){
+  if(typeof localStorage === 'undefined') return;
+  try {
+    const saved = localStorage.getItem('carBookingCreds');
+    if(!saved) return;
+    const creds = JSON.parse(saved);
+    if(creds.username) document.getElementById('loginUsername').value = creds.username;
+    if(creds.password) document.getElementById('loginPassword').value = creds.password;
+    document.getElementById('rememberMe').checked = true;
+  } catch(e){
+    localStorage.removeItem('carBookingCreds');
+  }
+}
+
+async function userRegister(){
+  const username = document.getElementById('regUsername').value;
+  const password = document.getElementById('regPassword').value;
+  const confirm = document.getElementById('regPasswordConfirm').value;
+  const msgEl = document.getElementById('regMessage');
+
+  if(!username || !password || !confirm){
+    msgEl.textContent = 'Fill all fields';
+    return;
+  }
+
+  if(password !== confirm){
+    msgEl.textContent = 'Passwords do not match';
+    return;
+  }
+
+  if(password.length < 4){
+    msgEl.textContent = 'Password must be at least 4 characters';
+    return;
+  }
+
+  const doc = await db.collection('users').doc(username).get();
+  if(doc.exists){
+    msgEl.textContent = 'Username already exists';
+    return;
+  }
+
+  await db.collection('users').doc(username).set({
+    password
+  });
+
+  msgEl.textContent = '✅ Account created! Switch to Login tab.';
+  msgEl.style.color = '#5cb85c';
+  document.getElementById('regUsername').value = '';
+  document.getElementById('regPassword').value = '';
+  document.getElementById('regPasswordConfirm').value = '';
+
+  setTimeout(() => {
+    switchAuthTab('login');
+    msgEl.textContent = '';
+    msgEl.style.color = '#d9534f';
+  }, 2000);
+}
+
+function userLogout(){
+  currentUser = null;
+  document.getElementById('authCard').style.display = 'block';
+  document.getElementById('bookingCard').style.display = 'none';
+  document.getElementById('currentUsername').textContent = '';
+  document.getElementById('username').value = '';
+  document.getElementById('resUser').value = '';
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginPassword').value = '';
+}
+
+async function adminCreateUser(){
+  const username = document.getElementById('adminNewUser').value;
+  const password = document.getElementById('adminNewPass').value;
+  const msgEl = document.getElementById('adminUserMessage');
+
+  if(!username || !password){
+    msgEl.textContent = 'Enter username and password';
+    return;
+  }
+
+  const doc = await db.collection('users').doc(username).get();
+  if(doc.exists){
+    msgEl.textContent = 'User already exists';
+    return;
+  }
+
+  await db.collection('users').doc(username).set({
+    password
+  });
+
+  msgEl.textContent = `✅ User '${username}' created!`;
+  msgEl.style.color = '#5cb85c';
+  document.getElementById('adminNewUser').value = '';
+  document.getElementById('adminNewPass').value = '';
+  loadAdminUsers();
+
+  setTimeout(() => {
+    msgEl.textContent = '';
+    msgEl.style.color = '#d9534f';
+  }, 3000);
+}
+
+/* LAST KM */
+async function getLastKm(){
+  const snap = await db.collection("sessions")
+    .orderBy("endTime","desc")
+    .limit(1)
+    .get();
+
+  return snap.empty ? 0 : snap.docs[0].data().endKm;
+}
+
+async function getPreviousSessionEndKm(excludeId){
+  const snap = await db.collection("sessions")
+    .orderBy("endTime","desc")
+    .limit(excludeId ? 2 : 1)
+    .get();
+
+  if(snap.empty) return 0;
+  if(!excludeId) return snap.docs[0].data().endKm;
+  if(snap.docs[0].id !== excludeId) return snap.docs[0].data().endKm;
+  return snap.docs.length > 1 ? snap.docs[1].data().endKm : 0;
+}
+
+/* AUTO KM */
+async function syncFutureReservationsStartKm(latestKm){
+  const now = new Date();
+  now.setHours(0,0,0,0);
+
+  const snap = await db.collection("reservations").get();
+  for(const doc of snap.docs){
+    const r = doc.data();
+    const start = new Date(r.start.seconds ? r.start.seconds * 1000 : r.start);
+    start.setHours(0,0,0,0);
+
+    if(now <= start && r.startKm !== latestKm){
+      await db.collection("reservations").doc(doc.id).update({
+        startKm: latestKm
+      });
+    }
+  }
+}
+
+window.onerror = function (msg, url, line) {
+  alert("JS ERROR:\n" + msg + "\nLine: " + line);
+};
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAMESE0",
+  authDomain: "create-project-74ee7.firebaseapp.com",
+  projectId: "create-project-74ee7"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let activeSession = null;
+let isAdmin = false;
+let lastUndo = null;
+let currentUser = null;
+
+/* FORMAT DATE */
+function formatDate(v){
+  if(!v) return "-";
+  if(v.seconds) return new Date(v.seconds*1000).toLocaleDateString();
+  return new Date(v).toLocaleDateString();
+}
+
+/* ADMIN */
+async function loginAdmin(){
+  const doc = await db.collection("admin").doc(adminUser.value).get();
+
+  if(doc.exists && doc.data().password === adminPass.value){
+    isAdmin = true;
+    adminActions.style.display = "block";
+    alert("✅ Admin logged in");
+    load();
+  } else {
+    alert("Wrong credentials");
+  }
+}
+
+function updateAdminView(){
+  document.body.classList.toggle('admin-visible', isAdmin);
+  updateUndoView();
+  if(isAdmin){
+    loadAdminUsers();
+  }
+}
+
+async function loadAdminUsers(){
+  const userList = document.getElementById('adminUserList');
+  if(!userList) return;
+  userList.innerHTML = 'Loading users...';
+
+  const snap = await db.collection('users').orderBy(firebase.firestore.FieldPath.documentId(), 'asc').get();
+  if(snap.empty){
+    userList.innerHTML = '<div>No users found.</div>';
+    return;
+  }
+
+  let html = '<table style="width:100%; border-collapse:collapse;">';
+  html += '<thead><tr><th style="text-align:left; padding:4px;">Username</th><th style="text-align:left; padding:4px;">Password</th><th style="text-align:left; padding:4px;">Actions</th></tr></thead><tbody>';
+
+  snap.docs.forEach(doc => {
+    const username = doc.id;
+    html += `<tr id="user-row-${username}">`;
+    html += `<td style="padding:4px;">${username}</td>`;
+    html += `<td style="padding:4px;"><input id="pwd-${username}" type="password" placeholder="New password" style="width:100%;"></td>`;
+    html += `<td style="padding:4px; white-space:nowrap;"><button onclick="updateUserPassword('${username}')">Change</button> <button onclick="deleteUser('${username}')">Delete</button></td>`;
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  userList.innerHTML = html;
+}
+
+async function updateUserPassword(username){
+  const input = document.getElementById(`pwd-${username}`);
+  if(!input) return;
+  const password = input.value.trim();
+  if(!password){
+    return alert('Enter a new password');
+  }
+
+  await db.collection('users').doc(username).update({ password });
+  input.value = '';
+  alert(`Password updated for ${username}`);
+}
+
+async function deleteUser(username){
+  if(!confirm(`Delete user ${username}? This cannot be undone.`)) return;
+  await db.collection('users').doc(username).delete();
+  loadAdminUsers();
+  alert(`User ${username} deleted.`);
+}
+
+function exportHistoryExcel(){
+  db.collection('sessions').get().then(snap => {
+    const rows = [['User','Start','End','Start KM','End KM','Distance']];
+    snap.docs.forEach(doc => {
+      const s = doc.data();
+      const start = s.startTime.seconds ? new Date(s.startTime.seconds * 1000).toLocaleDateString() : new Date(s.startTime).toLocaleDateString();
+      const end = s.endTime.seconds ? new Date(s.endTime.seconds * 1000).toLocaleDateString() : new Date(s.endTime).toLocaleDateString();
+      rows.push([s.user || '', start, end, s.startKm || '', s.endKm || '', s.distance || '']);
+    });
+
+    const csv = rows.map(r => r.map(v => typeof v === 'string' && /[",\n\r]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'history.xls';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+}
+
+function updateUndoView(){
+  const undoPanel = document.getElementById('undoPanel');
+  const undoButton = document.getElementById('undoButton');
+  const undoMessage = document.getElementById('undoMessage');
+  if(!undoPanel || !undoButton || !undoMessage) return;
+
+  if(isAdmin && lastUndo){
+    undoPanel.style.display = '';
+    undoButton.style.display = '';
+    undoMessage.textContent = lastUndo.message || 'Undo the last change.';
+  } else {
+    undoPanel.style.display = 'none';
+    undoButton.style.display = 'none';
+    undoMessage.textContent = '';
+  }
+}
+
+function subscribeRealtimeUpdates(){
+  db.collection('sessions').onSnapshot(() => {
+    load();
+  });
+
+  db.collection('reservations').onSnapshot(() => {
+    loadReservations();
+  });
+
+  db.collection('state').doc('active').onSnapshot(() => {
+    check();
+  });
+}
+
+async function setLastUndo(action){
+  lastUndo = action;
+  updateUndoView();
+}
+
+async function clearLastUndo(){
+  lastUndo = null;
+  updateUndoView();
+}
+
+async function undoLastAction(){
+  if(!lastUndo) return;
+  const action = lastUndo;
+  lastUndo = null;
+  updateUndoView();
+
+  if(action.type === 'deleteSession'){
+    await db.collection('sessions').doc(action.id).set(action.data);
+  } else if(action.type === 'saveEdit'){
+    await db.collection('sessions').doc(action.id).update(action.previousData);
+  } else if(action.type === 'addEntry'){
+    await db.collection('sessions').doc(action.id).delete();
+  }
+
+  load();
+}
+
+function toggleAdmin(){
+  adminPanel.style.display =
+    adminPanel.style.display === "none" ? "block" : "none";
+}
+
+/* START SESSION */
+async function startSession(){
+  if(!currentUser){
+    return alert("Please log in first");
+  }
+
+  const now = new Date();
+  const res = await db.collection("reservations").get();
+
+  for(const doc of res.docs){
+    const r = doc.data();
+    const start = new Date(r.start.seconds ? r.start.seconds*1000 : r.start);
+    const end = new Date(r.end.seconds ? r.end.seconds*1000 : r.end);
+
+    if(now >= start && now <= end){
+      return alert("🚫 Reserved!");
+    }
+  }
+
+  const km = await getLastKm();
+
+  await db.collection("state").doc("active").set({
+    user: currentUser,
+    startKm: km,
+    startTime: new Date()
+  });
+
+  await load();
+  check();
+}
+
+/* END SESSION */
+async function endSession(){
+  const km = parseInt(endKmInput.value);
+  if(!km || !activeSession) return alert("Invalid KM");
+
+  if(km < activeSession.startKm){
+    return alert(`End KM cannot be lower than start KM (${activeSession.startKm})`);
+  }
+
+  await db.collection("sessions").add({
+    ...activeSession,
+    endKm: km,
+    endTime: new Date(),
+    distance: km - activeSession.startKm
+  });
+
+  await db.collection("state").doc("active").delete();
+
+  await syncFutureReservationsStartKm(km);
+  await load();
+  check();
+}
+
+/* ADD RESERVATION ✅ FIXED */
+async function addReservation(){
+
+  const user = resUser.value;
+  const start = new Date(resStart.value + "T00:00:00");
+  const end = new Date(resEnd.value + "T23:59:59");
+  const km = await getLastKm();
+
+  if(!user || !resStart.value || !resEnd.value){
+    return alert("Fill all fields");
+  }
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const maxReserveDate = new Date(today);
+  maxReserveDate.setDate(maxReserveDate.getDate() + 6);
+
+  if(start < today){
+    return alert("Start date cannot be in the past.");
+  }
+
+  if(start > maxReserveDate){
+    return alert(`You can only reserve a start date within the next 6 days (through ${maxReserveDate.toISOString().slice(0,10)}).`);
+  }
+
+  if(start > end){
+    return alert("Invalid date range");
+  }
+
+  const lastKm = await getLastKm();
+  if(km < lastKm){
+    return alert("Start KM cannot be lower than the last session end KM.");
+  }
+
+  const all = await db.collection("reservations").get();
+
+  for(const doc of all.docs){
+
+    const r = doc.data();
+    const rStart = new Date(r.start.seconds ? r.start.seconds*1000 : r.start);
+    const rEnd = new Date(r.end.seconds ? r.end.seconds*1000 : r.end);
+
+    if(start <= rEnd && end >= rStart){
+      return alert("🚫 Already reserved!");
+    }
+  }
+
+  await db.collection("reservations").add({
+    user,
+    start,
+    end,
+    startKm: km
+  });
+
+  load();
+}
+
+/* DELETE */
+async function deleteReservation(id){
+  if(!confirm("Delete?")) return;
+
+  await db.collection("reservations").doc(id).delete();
+  load();
+}
+
+async function completeReservation(id){
+  const doc = await db.collection("reservations").doc(id).get();
+  if(!doc.exists) return alert("Reservation not found.");
+
+  const r = doc.data();
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const endDate = new Date(r.end.seconds ? r.end.seconds * 1000 : r.end);
+  endDate.setHours(0,0,0,0);
+
+  if(today < endDate){
+    return alert("You can only complete the reservation on or after the reserved end date.");
+  }
+
+  toggleReservationCompletePanel(id);
+}
+
+function toggleReservationCompletePanel(id){
+  const panel = document.getElementById(`complete-panel-${id}`);
+  if(!panel) return;
+  const isVisible = panel.style.display === 'block';
+  document.querySelectorAll('.complete-panel').forEach(el => el.style.display = 'none');
+  panel.style.display = isVisible ? 'none' : 'block';
+}
+
+function hideReservationCompletion(id){
+  const panel = document.getElementById(`complete-panel-${id}`);
+  if(panel) panel.style.display = 'none';
+}
+
+async function completeReservationInline(id){
+  const input = document.getElementById(`completeKmInput-${id}`);
+  if(!input) return;
+  const km = parseInt(input.value, 10);
+  if(isNaN(km)) return alert('Enter a valid end KM');
+
+  const doc = await db.collection('reservations').doc(id).get();
+  if(!doc.exists) return alert('Reservation not found.');
+
+  const r = doc.data();
+  const startKm = parseInt(r.startKm || 0, 10);
+  if(km < startKm) return alert('End KM must be greater than or equal to start KM.');
+
+  await db.collection('sessions').add({
+    user: r.user,
+    startKm,
+    endKm: km,
+    startTime: r.start,
+    endTime: r.end,
+    distance: km - startKm
+  });
+  await db.collection('reservations').doc(id).delete();
+  load();
+}
+
+async function addHistoryEntry(){
+  const user = entryUser.value;
+  const start = new Date(entryStart.value + "T00:00:00");
+  const end = new Date(entryEnd.value + "T23:59:59");
+  const startKm = parseInt(entryStartKm.value);
+  const endKm = parseInt(entryEndKm.value);
+
+  if(!user || !entryStart.value || !entryEnd.value || isNaN(startKm) || isNaN(endKm)){
+    return alert("Fill all entry fields");
+  }
+  if(start > end){
+    return alert("Invalid date range");
+  }
+  if(endKm < startKm){
+    return alert("End KM must be >= Start KM");
+  }
+
+  const lastKm = await getLastKm();
+  if(start >= new Date() && startKm < lastKm){
+    return alert("Start KM cannot be lower than the last session end KM.");
+  }
+
+  const docRef = await db.collection("sessions").add({
+    user,
+    startTime: start,
+    endTime: end,
+    startKm,
+    endKm,
+    distance: endKm - startKm
+  });
+
+  await syncFutureReservationsStartKm(endKm);
+  await setLastUndo({
+    type: 'addEntry',
+    id: docRef.id,
+    message: 'Added history entry. Undo to remove it.'
+  });
+
+  entryUser.value = "";
+  entryStart.value = "";
+  entryEnd.value = "";
+  entryStartKm.value = "";
+  entryEndKm.value = "";
+
+  load();
+}
+
+function enableEdit(id){
+  ["user","start","end","startKm","endKm"].forEach(field => {
+    const input = document.getElementById(`${field}-${id}`);
+    if(input) input.disabled = false;
+  });
+  document.getElementById(`edit-${id}`).style.display = 'none';
+  document.getElementById(`save-${id}`).style.display = 'inline-block';
+}
+
+async function saveEdit(id){
+  const user = document.getElementById(`user-${id}`).value;
+  const start = new Date(document.getElementById(`start-${id}`).value + "T00:00:00");
+  const end = new Date(document.getElementById(`end-${id}`).value + "T23:59:59");
+  const startKm = parseInt(document.getElementById(`startKm-${id}`).value);
+  const endKm = parseInt(document.getElementById(`endKm-${id}`).value);
+
+  if(!user || !start || !end || isNaN(startKm) || isNaN(endKm)){
+    return alert("Complete all fields before saving");
+  }
+  if(start > end){
+    return alert("Invalid date range");
+  }
+  if(endKm < startKm){
+    return alert("End KM must be >= Start KM");
+  }
+
+  const previousData = await db.collection("sessions").doc(id).get();
+  if(!previousData.exists) return alert("Entry not found.");
+
+  const previous = previousData.data();
+  const lastKm = await getPreviousSessionEndKm(id);
+  if(start >= new Date() && startKm < lastKm){
+    return alert("Start KM cannot be lower than the last session end KM.");
+  }
+
+  await db.collection("sessions").doc(id).update({
+    user,
+    startTime: start,
+    endTime: end,
+    startKm,
+    endKm,
+    distance: endKm - startKm
+  });
+
+  await setLastUndo({
+    type: 'saveEdit',
+    id,
+    previousData,
+    message: 'Saved changes. Undo to restore previous values.'
+  });
+
+  await syncFutureReservationsStartKm(endKm);
+  load();
+}
+
+async function loadReservations(){
+  const table = document.getElementById("reservations");
+  table.innerHTML = "";
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const snap = await db.collection("reservations").orderBy("start", "asc").get();
+  snap.docs.forEach(doc => {
+    const r = doc.data();
+    const endDate = new Date(r.end.seconds ? r.end.seconds * 1000 : r.end);
+    endDate.setHours(0,0,0,0);
+    const canComplete = today >= endDate;
+    const statusText = canComplete
+      ? `<strong style="color:#27632a;">Ready to complete</strong>`
+      : `<strong style="color:#555;">Reserved</strong>`;
+
+    const reservationActions = [];
+    if(canComplete){
+      reservationActions.push(`<button onclick="toggleReservationCompletePanel('${doc.id}')">Complete</button>`);
+    }
+    if(isAdmin){
+      reservationActions.push(`<button onclick="enableEditReservation('${doc.id}')">Edit</button>`);
+      reservationActions.push(`<button onclick="deleteReservation('${doc.id}')">Delete</button>`);
+    }
+    const actionHtml = reservationActions.length
+      ? reservationActions.join(' ')
+      : `<span style="font-size:0.9em;color:#666;">No actions available</span>`;
+
+    table.innerHTML += `
+<tr id="res-${doc.id}">
+  <td>${r.user || ""}</td>
+  <td>${formatDate(r.start)} → ${formatDate(r.end)}</td>
+  <td>${statusText}</td>
+</tr>
+<tr class="detail-row">
+  <td colspan="3">
+    <div class="detail-content">
+      <span>${canComplete ? 'This reservation can now be completed.' : 'Reserved until ' + formatDate(r.end)}</span>
+      ${actionHtml}
+    </div>
+    ${canComplete ? `<div id="complete-panel-${doc.id}" class="complete-panel" style="display:none; margin-top:12px;">
+      <input id="completeKmInput-${doc.id}" type="number" placeholder="Enter end KM" min="${r.startKm || 0}" value="${r.startKm || 0}" style="width:120px; margin-right:8px;">
+      <button onclick="completeReservationInline('${doc.id}')">Save</button>
+      <button onclick="hideReservationCompletion('${doc.id}')">Cancel</button>
+    </div>` : ''}
+  </td>
+</tr>`;
+  });
+}
+
+function enableEditReservation(id){
+  const row = document.getElementById(`res-${id}`);
+  if(!row) return;
+
+  const nextRow = row.nextElementSibling;
+  if(nextRow && nextRow.classList.contains('detail-row')){
+    nextRow.remove();
+  }
+
+  db.collection('reservations').doc(id).get().then(doc => {
+    if(!doc.exists) return;
+    const r = doc.data();
+    const startVal = new Date(r.start.seconds ? r.start.seconds * 1000 : r.start).toISOString().slice(0,10);
+    const endVal = new Date(r.end.seconds ? r.end.seconds * 1000 : r.end).toISOString().slice(0,10);
+
+    row.innerHTML = `
+<td><input id="editResUser-${id}" value="${r.user || ''}" style="width:100%;"></td>
+<td><input id="editResStart-${id}" type="date" value="${startVal}" style="width:48%;"> <input id="editResEnd-${id}" type="date" value="${endVal}" style="width:48%;"></td>
+<td><button onclick="saveReservation('${id}')">Save</button> <button onclick="loadReservations()">Cancel</button></td>
+`;
+  });
+}
+
+async function saveReservation(id){
+  const user = document.getElementById(`editResUser-${id}`).value.trim();
+  const start = document.getElementById(`editResStart-${id}`).value;
+  const end = document.getElementById(`editResEnd-${id}`).value;
+
+  if(!user || !start || !end){
+    return alert('Fill all reservation fields');
+  }
+
+  const startDate = new Date(start + 'T00:00:00');
+  const endDate = new Date(end + 'T23:59:59');
+  if(startDate > endDate){
+    return alert('Invalid reservation dates');
+  }
+
+  const snapshot = await db.collection('reservations').get();
+  for(const doc of snapshot.docs){
+    if(doc.id === id) continue;
+    const r = doc.data();
+    const rStart = new Date(r.start.seconds ? r.start.seconds * 1000 : r.start);
+    const rEnd = new Date(r.end.seconds ? r.end.seconds * 1000 : r.end);
+    if(startDate <= rEnd && endDate >= rStart){
+      return alert('Reservation overlaps an existing reservation.');
+    }
+  }
+
+  await db.collection('reservations').doc(id).update({
+    user,
+    start: startDate,
+    end: endDate
+  });
+
+  loadReservations();
+}
+
+async function deleteSession(id){
+  const doc = await db.collection("sessions").doc(id).get();
+  if(!doc.exists) return;
+
+  await db.collection("sessions").doc(id).delete();
+  await setLastUndo({
+    type: 'deleteSession',
+    id,
+    data: doc.data(),
+    message: 'Deleted history entry. Undo to restore it.'
+  });
+
+  load();
+}
+
+/* LOAD TABLE ✅ CLEAN */
+async function load(){
+  updateAdminView();
+  const table = document.getElementById("history");
+  table.innerHTML = "";
+
+  const snap = await db.collection("sessions").get();
+  snap.docs.forEach(doc => {
+    const s = doc.data();
+    table.innerHTML += `
+<tr id="row-${doc.id}">
+  <td><input value="${s.user}" id="user-${doc.id}" disabled></td>
+  <td><input type="date" id="start-${doc.id}" value="${s.startTime.seconds ? new Date(s.startTime.seconds*1000).toISOString().slice(0,10) : new Date(s.startTime).toISOString().slice(0,10)}" disabled></td>
+  <td><input type="date" id="end-${doc.id}" value="${s.endTime.seconds ? new Date(s.endTime.seconds*1000).toISOString().slice(0,10) : new Date(s.endTime).toISOString().slice(0,10)}" disabled></td>
+  <td><input type="number" id="startKm-${doc.id}" value="${s.startKm}" disabled></td>
+  <td><input type="number" id="endKm-${doc.id}" value="${s.endKm}" disabled></td>
+  <td>${s.distance || ""}</td>
+  <td class="admin-cell">
+    ${isAdmin ? `<button id="edit-${doc.id}" onclick="enableEdit('${doc.id}')">✏️</button><button id="save-${doc.id}" style="display:none;" onclick="saveEdit('${doc.id}')">💾</button><button onclick="deleteSession('${doc.id}')">❌</button>` : ""}
+  </td>
+</tr>`;
+  });
+
+  await loadReservations();
+}
+
+/* STATUS */
+async function check(){
+
+  const statusEl = document.getElementById("status");
+  const endBlockEl = document.getElementById("endBlock");
+
+  try{
+
+    const doc = await db.collection("state").doc("active").get();
+
+    if(doc.exists){
+      activeSession = doc.data();
+
+      statusEl.innerText = "🚫 In use by " + activeSession.user;
+      statusEl.className = "status busy";
+      endBlockEl.style.display = "block";
+
+    } else {
+      activeSession = null;
+
+      statusEl.innerText = "✅ Car available";
+      statusEl.className = "status free";
+      endBlockEl.style.display = "none";
+    }
+
+  } catch(e){
+    console.error(e);
+    statusEl.innerText = "✅ Car available";
+  }
+}
+
+/* INIT ✅ FIXED */
+async function init(){
+  loadSavedCredentials();
+  const km = await getLastKm();
+  await syncFutureReservationsStartKm(km);
+  subscribeRealtimeUpdates();
+  load();
+  check();
+}
+
+window.deleteReservation = deleteReservation;
+window.deleteSession = deleteSession;
+
+init();
+
+</script>
+
+</body>
+</html>
